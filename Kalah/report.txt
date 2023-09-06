@@ -1,0 +1,246 @@
+Brian Chiem
+UID: 705973390
+
+1. The main data structure the game relies on is a vector. I considered using a linked list, however, I did not feel like bothering with creating my own Board destructors, copy operators etc. 
+Since we only really need to be able to circle through the vector with the sow function, I just needed to make it loop around to the beginning when it hit the end. I also used a vector because in reality the vector will only hold so many items, unless someone decides to make an absurdly large game of kalah.
+For example, for a board of 4 holes per side, the vector looks like:
+
+[NPot, SHole, SHole, SHole, SHole, SPot, NHole, NHole, NHole, NHole]
+
+For the class declaration, the holes are a private structure in Board. They hold what beans are in the hole, a bool if it is a hole or pot, the number of the hole, and what side it is on.
+
+I used this in sow to determine the last item in the vector. It will always be North's first hole, and the first item is always North's pot.
+
+The only other helper functions I defined were for SmartPlayer::chooseMove, which I will describe in the next part.
+
+2. For SmartPlayer::chooseMove, it relies on two helper functions. I based it off of the documentation for the project, a miniMax recursive function, that takes in a board state, side, the depth of our search of the game tree, and a bool that determines if we, the player are maximizing our score, and minimizing the score of our opponent.
+The other helper function is evaluateBoard, which just takes a board, and a side, and determines the difference in beans in the sides pot with the opponents pot. This is the heuristic I relied on.
+Firstly, the chooseMove function takes our board, and calls miniMax for every valid move we can make for this initial board. It assumes that miniMax does its job and compares the scores for every valid hole, and returns the hole number.
+miniMax is recursive, so its base case is when either side runes out of beans, or if we reach our desired depth. It then returns the score of our board. Basically, for every possible move from our initial board, we look at the possible moves from that board and onward until we gameover. For each gameover, we look at the moves that give the best score, and look at the moves that minimize the opponents score. We then return that move that considers both cases.
+
+3. pseudocode for chooseMove and it's helper functions
+chooseMove
+for every hole on a side
+	if the hole has beans
+		make a copy of the current board
+		sow and complete the move for the hole
+		call miniMax on the modified board and retrieve the score
+		if that score is bigger than any score we've come across
+			our best score is that score
+			our best move is that hole
+return best move
+
+miniMax
+if depth is 0, north's holes have no beans, south's hole have no beans
+	return evaluateBoard of b and s for maximized player or minimized opponent
+if maximizing
+	for every hole on side s
+		if the hole has beans
+			make a copy of the board
+			sow and complete the move for the hole
+			call miniMax on the hole for the opponent,
+			decrease the depth by 1, minimize the opponent
+			if that score is better than our maxScore we found so far
+			set maxScore to that score
+	return maxScore
+if minimizing
+	for every hole on side s
+		if the hole has beans
+			make a copy of the board
+			sow and complete the move for the hole
+			call miniMax on the hole for the opponent,
+			decrease the depth by 1, maximize the opponent
+			if that score is less than our minScore we found so far
+			set minScore to that score
+	return minScore
+
+evaluateBoard
+	return side s's pot beans - their opponents pot beans
+
+pseudocode for sow
+if we selected a pot
+	return false
+find the hole we wnat
+	if it is empty
+		return false
+	if we are at the end of the vector
+		start from the beginning
+	hold onto how many beans were in the selected hole
+	set the beans in the selected hole to 0
+	for every hole after the selected hole
+		add a bean until we are out of beans to add
+	set the endSide to where we ended
+	set the endHole to where we ended
+	return true
+return false
+
+pseudocode for status
+if there are no beans either side
+	game is over
+	if the pots have the same number of beans
+		there is no winner
+	otherwise there is a winner
+		compare pots and return winner
+else
+	game is not over
+	
+pseudocode for move
+if there are no beans on the indicated side
+	move all the beans into their respective pots
+	write a message
+	return false
+if it is south's turn
+	attain the choice from south player using chooseMove
+	play the move with sow
+	if our last bean ended on our side in an empty pot
+		the turn is still south
+	otherwise
+		the turn is north
+	if south player is a bot
+		send a message
+	if there are no beans on the indicated side
+		move all the beans into their respective pots
+		write a message
+		return false
+	return true
+if it is north's turn
+	attain the choice from north player using chooseMove
+	play the move with sow
+	if our last bean ended on our side in an empty pot
+		the turn is still north
+	otherwise
+		the turn is south
+	if north player is a bot
+		send a message
+	if there are no beans on the indicated side
+		move all the beans into their respective pots
+		write a message
+		return false
+	return true
+return false
+
+4. some weird bugs I am seeing is that when I pit two SmartPlayers against each other, a tie occurs either 100% of the time, or one side dominates the other side 100% of the time. The weird part is that this behavior depends on the depth number I chose.
+Some other things to note. I saved writing SmartPlayer for last, and I did not know until then that there was a function that returned the opponent given a side. This means that for many of my functions it is really repetetive because I had if statements for both sides
+
+5. Test Cases
+
+BOARD TEST CASES
+
+Board b(6, 4)
+assert(b.holes() == 6) // test holes
+assert(b.beans(SOUTH, 1) == 4) // test beans
+assert(b.beans(SOUTH, 6) == 4)
+assert(b.beans(SOUTH, 0) == 0)
+assert(b.beans(NORTH, 1) == 4)
+assert(b.beans(NORTH, 6) == 4)
+assert(b.beans(NORTH, 0) == 0)
+
+assert(b.beansInPlay(SOUTH) == 24) // test beansInPlay
+assert(b.beansInPlay(NORTH) == 24)
+assert(b.totalBeans() == 48) // test totalBeans
+
+b.sow(SOUTH, 1, endSide, endHole) // test sow
+assert(b.beans(SOUTH, 1) == 0)
+assert(b.beans(SOUTH, 2) == 5)
+assert(b.beans(SOUTH, 3) == 5)
+assert(b.beans(SOUTH, 4) == 5)
+assert(b.beans(SOUTH, 5) == 5)
+
+b.moveToPot(SOUTH, 5, SOUTH) // moveToPot
+assert(b.beans(SOUTH, 0) == 5)
+assert(b.beans(SOUTH, 5) == 0)
+
+PLAYER TEST CASES
+
+HumanPlayer* human = new HumanPlayer("Brian")
+BadPlayer* badBot = new BadPlayer("Bad Bot")
+SmartPlayer* smartBot = new SmartPlayer("Smart Bot")
+
+assert(human->name() == "Brian") // test name
+assert(badBot->name() == "Bad Bot")
+assert(smartBot->name() == "Smart Bot")
+
+assert(human->isInteractive() == true) // test isInteractive
+assert(badBot->isInteractive() == false)
+assert(smartBot->isInteractive() == false)
+
+human->chooseMove() // should prompt player for a hole
+badBot->chooseMove() // random number, should return a valid hole however
+smartBot->chooseMove() // not sure how to test really but it beats me
+
+GAME TEST CASES
+
+Board b(6, 4)
+HumanPlayer* human = new HumanPlayer("Brian")
+BadPlayer* badBot = new BadPlayer("Bad Bot")
+SmartPlayer* smartBot = new SmartPlayer("Smart Bot")
+Game game(b, human, smartBot)
+
+game.display() // should look like this
+Smart Bot
+    1 2 3 4 5 6
+- - - - - - - - - -
+    4 4 4 4 4 4
+ 0               0
+    4 4 4 4 4 4
+- - - - - - - - - -
+    1 2 3 4 5 6
+                Brian
+game.status(over, hasWinner, winner)
+assert(over == false)
+assert(hasWinner == hasWinner) // these should have been unchanged
+assert(winner == winner)
+
+game.move(SOUTH) // lets say I enter 1
+game.display() // should look like
+Smart Bot
+    1 2 3 4 5 6
+- - - - - - - - - -
+    4 4 4 4 4 4
+ 0               0
+    0 5 5 5 5 4
+- - - - - - - - - -
+    1 2 3 4 5 6
+                Brian
+m_turn should now be set to NORTH
+
+game.play() // should let you play the game like intended
+
+// here is a snippet of what it looks like when ran
+Enter your name: Brian
+Smart BOT
+    1 2 3 4 5 6
+- - - - - - - - - -
+    4 4 4 4 4 4
+ 0               0
+    4 4 4 4 4 4
+- - - - - - - - - -
+    1 2 3 4 5 6
+                Brian
+Select a hole, Brian: 1
+Smart BOT
+    1 2 3 4 5 6
+- - - - - - - - - -
+    4 4 4 4 4 4
+ 0               0
+    0 5 5 5 5 4
+- - - - - - - - - -
+    1 2 3 4 5 6
+                Brian
+Smart BOT chooses hole 1
+Smart BOT
+    1 2 3 4 5 6
+- - - - - - - - - -
+    0 4 4 4 4 4
+ 1               0
+    1 6 6 5 5 4
+- - - - - - - - - -
+    1 2 3 4 5 6
+                Brian
+Select a hole, Brian: 2
+
+
+
+
+
+	
